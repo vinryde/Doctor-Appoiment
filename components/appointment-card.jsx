@@ -30,7 +30,6 @@ import {
   addAppointmentNotes,
   markAppointmentCompleted,
 } from "@/actions/doctor";
-import { generateVideoToken } from "@/actions/appointments";
 import useFetch from "@/hooks/use-fetch";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -41,11 +40,11 @@ export function AppointmentCard({
   refetchAppointments,
 }) {
   const [open, setOpen] = useState(false);
-  const [action, setAction] = useState(null); // 'cancel', 'notes', 'video', or 'complete'
+  const [action, setAction] = useState(null); // 'cancel', 'notes', or 'complete'
   const [notes, setNotes] = useState(appointment.notes || "");
   const router = useRouter();
 
-  // UseFetch hooks for server actions
+  // Server actions
   const {
     loading: cancelLoading,
     fn: submitCancel,
@@ -57,17 +56,11 @@ export function AppointmentCard({
     data: notesData,
   } = useFetch(addAppointmentNotes);
   const {
-    loading: tokenLoading,
-    fn: submitTokenRequest,
-    data: tokenData,
-  } = useFetch(generateVideoToken);
-  const {
     loading: completeLoading,
     fn: submitMarkCompleted,
     data: completeData,
   } = useFetch(markAppointmentCompleted);
 
-  // Format date and time
   const formatDateTime = (dateString) => {
     try {
       return format(new Date(dateString), "MMMM d, yyyy 'at' h:mm a");
@@ -76,7 +69,6 @@ export function AppointmentCard({
     }
   };
 
-  // Format time only
   const formatTime = (dateString) => {
     try {
       return format(new Date(dateString), "h:mm a");
@@ -85,7 +77,6 @@ export function AppointmentCard({
     }
   };
 
-  // Check if appointment can be marked as completed
   const canMarkCompleted = () => {
     if (userRole !== "DOCTOR" || appointment.status !== "SCHEDULED") {
       return false;
@@ -95,10 +86,8 @@ export function AppointmentCard({
     return now >= appointmentEndTime;
   };
 
-  // Handle cancel appointment
   const handleCancelAppointment = async () => {
     if (cancelLoading) return;
-
     if (
       window.confirm(
         "Are you sure you want to cancel this appointment? This action cannot be undone."
@@ -110,21 +99,16 @@ export function AppointmentCard({
     }
   };
 
-  // Handle mark as completed
   const handleMarkCompleted = async () => {
     if (completeLoading) return;
-
-    // Check if appointment end time has passed
     const now = new Date();
     const appointmentEndTime = new Date(appointment.endTime);
-
     if (now < appointmentEndTime) {
       alert(
         "Cannot mark appointment as completed before the scheduled end time."
       );
       return;
     }
-
     if (
       window.confirm(
         "Are you sure you want to mark this appointment as completed? This action cannot be undone."
@@ -136,37 +120,19 @@ export function AppointmentCard({
     }
   };
 
-  // Handle save notes (doctor only)
   const handleSaveNotes = async () => {
     if (notesLoading || userRole !== "DOCTOR") return;
-
     const formData = new FormData();
     formData.append("appointmentId", appointment.id);
     formData.append("notes", notes);
     await submitNotes(formData);
   };
 
-  // Handle join video call
-  const handleJoinVideoCall = async () => {
-    if (tokenLoading) return;
-
-    setAction("video");
-
-    const formData = new FormData();
-    formData.append("appointmentId", appointment.id);
-    await submitTokenRequest(formData);
-  };
-
-  // Handle successful operations
   useEffect(() => {
     if (cancelData?.success) {
       toast.success("Appointment cancelled successfully");
       setOpen(false);
-      if (refetchAppointments) {
-        refetchAppointments();
-      } else {
-        router.refresh();
-      }
+      refetchAppointments ? refetchAppointments() : router.refresh();
     }
   }, [cancelData, refetchAppointments, router]);
 
@@ -174,11 +140,7 @@ export function AppointmentCard({
     if (completeData?.success) {
       toast.success("Appointment marked as completed");
       setOpen(false);
-      if (refetchAppointments) {
-        refetchAppointments();
-      } else {
-        router.refresh();
-      }
+      refetchAppointments ? refetchAppointments() : router.refresh();
     }
   }, [completeData, refetchAppointments, router]);
 
@@ -186,32 +148,14 @@ export function AppointmentCard({
     if (notesData?.success) {
       toast.success("Notes saved successfully");
       setAction(null);
-      if (refetchAppointments) {
-        refetchAppointments();
-      } else {
-        router.refresh();
-      }
+      refetchAppointments ? refetchAppointments() : router.refresh();
     }
   }, [notesData, refetchAppointments, router]);
 
-  useEffect(() => {
-    if (tokenData?.success) {
-      // Redirect to video call page with token and session ID
-      router.push(
-        `/video-call?sessionId=${tokenData.videoSessionId}&token=${tokenData.token}&appointmentId=${appointment.id}`
-      );
-    } else if (tokenData?.error) {
-      setAction(null);
-    }
-  }, [tokenData, appointment.id, router]);
-
-  // Determine if appointment is active (within 30 minutes of start time)
   const isAppointmentActive = () => {
     const now = new Date();
     const appointmentTime = new Date(appointment.startTime);
     const appointmentEndTime = new Date(appointment.endTime);
-
-    // Can join 30 minutes before start until end time
     return (
       (appointmentTime.getTime() - now.getTime() <= 30 * 60 * 1000 &&
         now < appointmentTime) ||
@@ -219,10 +163,8 @@ export function AppointmentCard({
     );
   };
 
-  // Determine other party information based on user role
   const otherParty =
     userRole === "DOCTOR" ? appointment.patient : appointment.doctor;
-
   const otherPartyLabel = userRole === "DOCTOR" ? "Patient" : "Doctor";
   const otherPartyIcon = userRole === "DOCTOR" ? <User /> : <Stethoscope />;
 
@@ -324,7 +266,7 @@ export function AppointmentCard({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Other Party Information */}
+            {/* Other Party */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground">
                 {otherPartyLabel}
@@ -353,7 +295,7 @@ export function AppointmentCard({
               </div>
             </div>
 
-            {/* Appointment Time */}
+            {/* Time */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground">
                 Scheduled Time
@@ -410,37 +352,26 @@ export function AppointmentCard({
               </div>
             )}
 
-            {/* Join Video Call Button */}
-            {appointment.status === "SCHEDULED" && (
+            {/* Google Meet Link */}
+            {appointment.status === "SCHEDULED" && appointment.googleMeetLink && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">
                   Video Consultation
                 </h4>
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700"
-                  disabled={
-                    !isAppointmentActive() || action === "video" || tokenLoading
-                  }
-                  onClick={handleJoinVideoCall}
+                  disabled={!isAppointmentActive()}
+                  onClick={() => window.open(appointment.googleMeetLink, "_blank")}
                 >
-                  {tokenLoading || action === "video" ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Preparing Video Call...
-                    </>
-                  ) : (
-                    <>
-                      <Video className="h-4 w-4 mr-2" />
-                      {isAppointmentActive()
-                        ? "Join Video Call"
-                        : "Video call will be available 30 minutes before appointment"}
-                    </>
-                  )}
+                  <Video className="h-4 w-4 mr-2" />
+                  {isAppointmentActive()
+                    ? "Join Google Meet"
+                    : "Link will be active 30 min before appointment"}
                 </Button>
               </div>
             )}
 
-            {/* Doctor Notes (Doctor can view/edit, Patient can only view) */}
+            {/* Doctor Notes */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-medium text-muted-foreground">
@@ -516,9 +447,9 @@ export function AppointmentCard({
             </div>
           </div>
 
+          {/* Footer */}
           <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
             <div className="flex gap-2">
-              {/* Mark as Complete Button - Only for doctors */}
               {canMarkCompleted() && (
                 <Button
                   onClick={handleMarkCompleted}
@@ -539,7 +470,6 @@ export function AppointmentCard({
                 </Button>
               )}
 
-              {/* Cancel Button - For scheduled appointments */}
               {appointment.status === "SCHEDULED" && (
                 <Button
                   variant="outline"

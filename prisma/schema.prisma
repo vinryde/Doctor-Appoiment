@@ -80,9 +80,9 @@ model Appointment {
   notes             String?  @db.Text
   patientDescription String? @db.Text
     
-  // Video session fields
-  videoSessionId    String?  // Vonage Video API Session ID
-  videoSessionToken String?  // Optional: Can store tokens if needed
+ googleMeetLink      String?  // The join link for the meeting
+ googleEventId       String?  // Google Calendar event ID
+ calendarId          String? 
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
