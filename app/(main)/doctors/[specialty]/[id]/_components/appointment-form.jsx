@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { Loader2, Clock, ArrowLeft, Calendar, CreditCard } from "lucide-react";
 import { bookAppointment } from "@/actions/appointments";
+import { checkGoogleConnected } from "@/actions/user"; // ✅ new import
 import { toast } from "sonner";
 import useFetch from "@/hooks/use-fetch";
 
 export function AppointmentForm({ doctorId, slot, onBack, onComplete }) {
   const [description, setDescription] = useState("");
+  const [googleConnected, setGoogleConnected] = useState(true); // ✅ new state
 
   // Use the useFetch hook to handle loading, data, and error states
   const { loading, data, fn: submitBooking } = useFetch(bookAppointment);
@@ -39,10 +41,36 @@ export function AppointmentForm({ doctorId, slot, onBack, onComplete }) {
         onComplete();
       }
     }
-  }, [data]);
+  }, [data, onComplete]);
+
+  // ✅ Check if Google is connected on mount
+  useEffect(() => {
+    async function verifyGoogle() {
+      try {
+        const res = await checkGoogleConnected();
+        setGoogleConnected(res.connected);
+      } catch {
+        setGoogleConnected(false);
+      }
+    }
+    verifyGoogle();
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Google connection warning */}
+      {!googleConnected && (
+        <div className="bg-amber-900/20 border border-amber-700/40 text-amber-300 p-3 rounded-md text-sm">
+          ⚠️ Google is not connected. Meet links won’t be created automatically.
+          <a
+            href="/api/auth/signin/google"
+            className="underline text-amber-200 hover:text-amber-100 ml-1"
+          >
+            Connect Google
+          </a>
+        </div>
+      )}
+
       <div className="bg-muted/20 p-4 rounded-lg border border-emerald-900/20 space-y-3">
         <div className="flex items-center">
           <Calendar className="h-5 w-5 text-emerald-400 mr-2" />

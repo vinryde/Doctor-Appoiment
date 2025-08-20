@@ -30,7 +30,15 @@ export async function getPatientAppointments() {
       where: {
         patientId: user.id,
       },
-      include: {
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        patientDescription: true,
+        googleMeetLink: true,
+        googleEventId: true,
+        calendarId: true,
         doctor: {
           select: {
             id: true,

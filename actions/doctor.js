@@ -3,6 +3,9 @@
 import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { google } from "googleapis";
 
 /**
  * Set doctor's availability slots
@@ -123,7 +126,6 @@ export async function getDoctorAvailability() {
 /**
  * Get doctor's upcoming appointments
  */
-
 export async function getDoctorAppointments() {
   const { userId } = await auth();
 
@@ -150,8 +152,23 @@ export async function getDoctorAppointments() {
           in: ["SCHEDULED"],
         },
       },
-      include: {
-        patient: true,
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        patientDescription: true,
+        googleMeetLink: true,
+        googleEventId: true,
+        calendarId: true,
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            imageUrl: true,
+            email: true,
+          },
+        },
       },
       orderBy: {
         startTime: "asc",
@@ -175,6 +192,8 @@ export async function cancelAppointment(formData) {
   }
 
   try {
+    const session = await getServerSession(authOptions);
+
     const user = await db.user.findUnique({
       where: {
         clerkUserId: userId,
@@ -211,20 +230,38 @@ export async function cancelAppointment(formData) {
       throw new Error("You are not authorized to cancel this appointment");
     }
 
+    // Try deleting Google Calendar event if exists
+    if (appointment.googleEventId && session?.accessToken) {
+      try {
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: session.accessToken });
+        const calendar = google.calendar({ version: "v3", auth });
+
+        await calendar.events.delete({
+          calendarId: appointment.calendarId || "primary",
+          eventId: appointment.googleEventId,
+        });
+      } catch (err) {
+        console.error("Failed to delete Google Calendar event:", err);
+      }
+    }
+
     // Perform cancellation in a transaction
     await db.$transaction(async (tx) => {
-      // Update the appointment status to CANCELLED
+      // Update the appointment status to CANCELLED and clear Google fields
       await tx.appointment.update({
         where: {
           id: appointmentId,
         },
         data: {
           status: "CANCELLED",
+          googleMeetLink: null,
+          googleEventId: null,
+          calendarId: null,
         },
       });
 
       // Always refund credits to patient and deduct from doctor
-      // Create credit transaction for patient (refund)
       await tx.creditTransaction.create({
         data: {
           userId: appointment.patientId,
@@ -233,7 +270,6 @@ export async function cancelAppointment(formData) {
         },
       });
 
-      // Create credit transaction for doctor (deduction)
       await tx.creditTransaction.create({
         data: {
           userId: appointment.doctorId,
@@ -242,7 +278,6 @@ export async function cancelAppointment(formData) {
         },
       });
 
-      // Update patient's credit balance (increment)
       await tx.user.update({
         where: {
           id: appointment.patientId,
@@ -254,7 +289,6 @@ export async function cancelAppointment(formData) {
         },
       });
 
-      // Update doctor's credit balance (decrement)
       await tx.user.update({
         where: {
           id: appointment.doctorId,
@@ -368,11 +402,10 @@ export async function markAppointmentCompleted(formData) {
       throw new Error("Appointment ID is required");
     }
 
-    // Find the appointment
     const appointment = await db.appointment.findUnique({
       where: {
         id: appointmentId,
-        doctorId: doctor.id, // Ensure appointment belongs to this doctor
+        doctorId: doctor.id,
       },
       include: {
         patient: true,
@@ -383,12 +416,10 @@ export async function markAppointmentCompleted(formData) {
       throw new Error("Appointment not found or not authorized");
     }
 
-    // Check if appointment is currently scheduled
     if (appointment.status !== "SCHEDULED") {
       throw new Error("Only scheduled appointments can be marked as completed");
     }
 
-    // Check if current time is after the appointment end time
     const now = new Date();
     const appointmentEndTime = new Date(appointment.endTime);
 
@@ -398,7 +429,6 @@ export async function markAppointmentCompleted(formData) {
       );
     }
 
-    // Update the appointment status to COMPLETED
     const updatedAppointment = await db.appointment.update({
       where: {
         id: appointmentId,

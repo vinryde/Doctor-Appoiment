@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache";
 import { deductCreditsForAppointment } from "@/actions/credits";
 import { addDays, addMinutes, format, isBefore, endOfDay } from "date-fns";
 
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { createGoogleMeetEvent } from "@/lib/google";
+
 /**
  * Book a new appointment with a doctor
  */
@@ -17,6 +21,8 @@ export async function bookAppointment(formData) {
   }
 
   try {
+    const session = await getServerSession(authOptions);
+
     // Get the patient user
     const patient = await db.user.findUnique({
       where: {
@@ -94,8 +100,8 @@ export async function bookAppointment(formData) {
       throw new Error(error || "Failed to deduct credits");
     }
 
-    // Create the appointment (Vonage session removed)
-    const appointment = await db.appointment.create({
+    // Create the appointment (Vonage removed)
+    let appointment = await db.appointment.create({
       data: {
         patientId: patient.id,
         doctorId: doctor.id,
@@ -106,8 +112,47 @@ export async function bookAppointment(formData) {
       },
     });
 
+    // Try to create Google Meet event if access token available
+    if (session?.accessToken) {
+      try {
+        const eventDetails = {
+          summary: `Appointment with Dr. ${doctor.name || "Doctor"}`,
+          description: patientDescription || "Doctor consultation",
+          start: startTime,
+          end: endTime,
+          attendees: [
+            { email: patient.email },
+            { email: doctor.email },
+          ],
+        };
+
+      console.log("Using access token:", session?.accessToken?.slice(0,10));
+
+
+        const event = await createGoogleMeetEvent(
+          session.accessToken,
+          eventDetails
+        );
+
+        if (event?.hangoutLink && event?.id) {
+          appointment = await db.appointment.update({
+            where: { id: appointment.id },
+            data: {
+              googleMeetLink: event.hangoutLink,
+              googleEventId: event.id,
+              calendarId: "primary",
+            },
+          });
+        }
+      } catch (err) {
+        console.error("Failed to create Google Meet event:", err);
+      }
+    } else {
+      console.warn("No Google access token found. Skipping Meet link creation.");
+    }
+
     revalidatePath("/appointments");
-    return { success: true, appointment: appointment };
+    return { success: true, appointment };
   } catch (error) {
     console.error("Failed to book appointment:", error);
     throw new Error("Failed to book appointment:" + error.message);
@@ -187,8 +232,16 @@ export async function getAvailableTimeSlots(doctorId) {
       const availabilityStart = new Date(availability.startTime);
       const availabilityEnd = new Date(availability.endTime);
 
-      availabilityStart.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
-      availabilityEnd.setFullYear(day.getFullYear(), day.getMonth(), day.getDate());
+      availabilityStart.setFullYear(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate()
+      );
+      availabilityEnd.setFullYear(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate()
+      );
 
       let current = new Date(availabilityStart);
       const end = new Date(availabilityEnd);
