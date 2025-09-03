@@ -1,4 +1,4 @@
-import { Inter } from "next/font/google";
+import { Inter, Lora } from "next/font/google";
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
@@ -8,6 +8,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Providers from "./providers"; // SessionProvider wrapper
 
 const inter = Inter({ subsets: ["latin"] });
+const lora = Lora({ subsets: ["latin"] });
+
 
 export const metadata = {
   title: "Doctors Appointment App",
@@ -29,15 +31,16 @@ export default function RootLayout({ children }) {
         <head>
           <link rel="icon" href="/logo.png" sizes="any" />
         </head>
-        <body className={inter.className}>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {/* Wrap all UI with SessionProvider */}
-            <Providers>
+        <body className={`${lora.variable} antialiased bg-[#f5f5dc]`} style={{
+      backgroundImage: `
+        radial-gradient(circle at 20% 80%, rgba(120,119,198,0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.5) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120,119,198,0.1) 0%, transparent 50%)`,
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "cover",
+        backgroundAttachment: "fixed",
+    }}>
+          
               <Header />
               <main className="min-h-screen">{children}</main>
               <Toaster richColors />
@@ -47,8 +50,6 @@ export default function RootLayout({ children }) {
                   <p>Made with 💗 by RoadsideCoder</p>
                 </div>
               </footer>
-            </Providers>
-          </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -6,12 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Pricing from "@/components/pricing";
 import { creditBenefits, features, testimonials } from "@/lib/data";
+import AyurvedicHeroSlider from "@/components/heroslider";
+import LiquidGlassCard, { LiquidButton } from "@/components/ui/liquidglass";
+import OrbitCarousel from "@/components/orbiting-carousel-with-animated-icons";
+import ServicesOne from "@/components/services";
+import ConsultPack from "@/components/consultpack";
 
 export default function Home() {
   return (
-    <div className="bg-background">
+    <div className="z-0">
       {/* Hero Section */}
-      <section className="relative overflow-hidden py-32">
+    {/* <section className="relative overflow-hidden py-32">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
@@ -62,12 +67,15 @@ export default function Home() {
           </div>
         </div>
       </section>
+      */}
+      <AyurvedicHeroSlider/>
+      
 
-      {/* Features Section */}
-      <section className="py-20 bg-muted/30">
+      {/* Features Section 
+      <section className="py-20 bg-[#4B4B2F]">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            <h2 className="text-3xl md:text-4xl  font-serif text-[#ffffff] mb-4">
               How It Works
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -77,29 +85,38 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature, index) => (
-              <Card
+              <LiquidGlassCard variant="default" hover="default"
                 key={index}
-                className="bg-card border-emerald-900/20 hover:border-emerald-800/40 transition-all duration-300"
+                className="bg-black border-emerald-900/20 hover:border-emerald-800/40 transition-all duration-300 gap-2"
               >
                 <CardHeader className="pb-2">
-                  <div className="bg-emerald-900/20 p-3 rounded-lg w-fit mb-4">
+                  <div className="bg-[#4b4b2f] p-3 rounded-lg w-fit mb-4">
                     {feature.icon}
                   </div>
-                  <CardTitle className="text-xl font-semibold text-white">
+                  <CardTitle className="text-xl font-serif font-medium text-[#e2e2e2]">
                     {feature.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">{feature.description}</p>
                 </CardContent>
-              </Card>
+              </LiquidGlassCard>
             ))}
           </div>
         </div>
-      </section>
+      </section>*/}
+      <div className="min-h-screen w-full relative">
+  {/* Noise Texture (Darker Dots) Background */}
+  
+<OrbitCarousel />
+</div>
+<div className=" z-20">
+<ServicesOne />
+</div>
+<ConsultPack/>
 
       {/* Pricing Section with green medical styling */}
-      <section id="pricing" className="py-20">
+      <section id="pricing" className="py-20 ">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <Badge
@@ -158,6 +175,12 @@ export default function Home() {
                 </ul>
               </CardContent>
             </Card>
+          <LiquidGlassCard variant="primary" hover="glow" className="max-w-md">
+                <h3>Your Custom Title</h3>
+                <p>Any content you want</p>
+                <LiquidButton>hello</LiquidButton>
+
+              </LiquidGlassCard>
           </div>
         </div>
       </section>

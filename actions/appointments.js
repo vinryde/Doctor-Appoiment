@@ -5,9 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { deductCreditsForAppointment } from "@/actions/credits";
 import { addDays, addMinutes, format, isBefore, endOfDay } from "date-fns";
-
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { createGoogleMeetEvent } from "@/lib/google";
 
 /**
@@ -21,8 +18,6 @@ export async function bookAppointment(formData) {
   }
 
   try {
-    const session = await getServerSession(authOptions);
-
     // Get the patient user
     const patient = await db.user.findUnique({
       where: {
@@ -100,7 +95,7 @@ export async function bookAppointment(formData) {
       throw new Error(error || "Failed to deduct credits");
     }
 
-    // Create the appointment (Vonage removed)
+    // Create the appointment
     let appointment = await db.appointment.create({
       data: {
         patientId: patient.id,
@@ -112,50 +107,41 @@ export async function bookAppointment(formData) {
       },
     });
 
-    // Try to create Google Meet event if access token available
-    if (session?.accessToken) {
-      try {
-        const eventDetails = {
-          summary: `Appointment with Dr. ${doctor.name || "Doctor"}`,
-          description: patientDescription || "Doctor consultation",
-          start: startTime,
-          end: endTime,
-          attendees: [
-            { email: patient.email },
-            { email: doctor.email },
-          ],
-        };
+    // Always create Google Meet event using the service account (no NextAuth)
+    try {
+      const event = await createGoogleMeetEvent({
+        doctor,
+        patient,
+        startTime,
+        endTime,
+        description: patientDescription,
+      });
 
-      console.log("Using access token:", session?.accessToken?.slice(0,10));
-
-
-        const event = await createGoogleMeetEvent(
-          session.accessToken,
-          eventDetails
+      if (event?.hangoutLink || event?.id) {
+        appointment = await db.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            googleMeetLink: event.hangoutLink,
+            googleEventId: event.id,
+            calendarId: process.env.GOOGLE_CALENDAR_ID || "primary",
+          },
+        });
+      } else {
+        console.warn(
+          "Google Meet event was created without hangoutLink or id. Event response:",
+          event
         );
-
-        if (event?.hangoutLink && event?.id) {
-          appointment = await db.appointment.update({
-            where: { id: appointment.id },
-            data: {
-              googleMeetLink: event.hangoutLink,
-              googleEventId: event.id,
-              calendarId: "primary",
-            },
-          });
-        }
-      } catch (err) {
-        console.error("Failed to create Google Meet event:", err);
       }
-    } else {
-      console.warn("No Google access token found. Skipping Meet link creation.");
+    } catch (err) {
+      console.error("Failed to create Google Meet event via service account:", err);
+      // continue without blocking booking
     }
 
     revalidatePath("/appointments");
     return { success: true, appointment };
   } catch (error) {
     console.error("Failed to book appointment:", error);
-    throw new Error("Failed to book appointment:" + error.message);
+    throw new Error("Failed to book appointment: " + error.message);
   }
 }
 
